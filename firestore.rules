@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email);
+    }
+
+    function isValidAudit(data) {
+      return data.keys().hasAll(['userId', 'datasetName', 'timestamp', 'fairnessScore']) &&
+             data.userId == request.auth.uid &&
+             data.datasetName is string && data.datasetName.size() > 0 && data.datasetName.size() < 200 &&
+             data.fairnessScore is number && data.fairnessScore >= 0 && data.fairnessScore <= 100;
+    }
+
+    function isValidModelAudit(data) {
+      return data.keys().hasAll(['userId', 'datasetName', 'timestamp', 'metrics']) &&
+             data.userId == request.auth.uid &&
+             data.datasetName is string && data.datasetName.size() > 0 && data.datasetName.size() < 200 &&
+             data.metrics is map;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /audits/{auditId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidAudit(request.resource.data);
+      allow update: if isDocOwner() && isValidAudit(request.resource.data) && 
+                      request.resource.data.userId == resource.data.userId;
+      allow delete: if isDocOwner();
+    }
+
+    match /model_audits/{auditId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidModelAudit(request.resource.data);
+      allow update: if isDocOwner() && isValidModelAudit(request.resource.data) && 
+                      request.resource.data.userId == resource.data.userId;
+      allow delete: if isDocOwner();
+    }
+  }
+}
