@@ -36,7 +36,6 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
   
   // Configuration state
   const [actualCol, setActualCol] = useState<string>('');
-  const [predictedCol, setPredictedCol] = useState<string>('');
   const [protectedCol, setProtectedCol] = useState<string>('');
   
   // Analysis state
@@ -60,8 +59,7 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
             setColumns(results.meta.fields);
             // Auto-detect columns if possible
             const cols = results.meta.fields;
-            setActualCol(cols.find(c => c.toLowerCase().includes('actual') || c.toLowerCase().includes('real')) || '');
-            setPredictedCol(cols.find(c => c.toLowerCase().includes('predict')) || '');
+            setActualCol(cols.find(c => c.toLowerCase().includes('actual') || c.toLowerCase().includes('real') || c.toLowerCase().includes('outcome')) || '');
             setProtectedCol(cols.find(c => c.toLowerCase().includes('gender') || c.toLowerCase().includes('race') || c.toLowerCase().includes('protected')) || '');
           }
           setIsParsing(false);
@@ -82,7 +80,7 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
   });
 
   const handleStartAnalysis = async () => {
-    if (!actualCol || !predictedCol || !protectedCol) return;
+    if (!actualCol || !protectedCol || !file) return;
     
     setIsAnalyzing(true);
     setStep('analyze');
@@ -100,35 +98,35 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
     }, 300);
 
     try {
-      const metrics = calculateModelMetrics(data, actualCol, predictedCol, protectedCol);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('outcome_column', actualCol);
+      formData.append('protected_column', protectedCol);
+
+      const response = await fetch('http://localhost:8000/api/audit-models', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.detail || "Failed to analyze models");
+      }
+
+      const data = await response.json();
       
-      const result: ModelAuditResult = {
+      const result: any = { // we will adapt ModelAuditResult if necessary
+        id: `local_model_${Date.now()}`,
         userId: user.uid,
         datasetName: file?.name || 'Model Audit',
         timestamp: new Date().toISOString(),
-        metrics,
+        backendResults: data, // store backend results
         protectedColumn: protectedCol,
-        actualColumn: actualCol,
-        predictedColumn: predictedCol
+        actualColumn: actualCol
       };
 
-      // Save to Firebase or LocalStorage
-      if (user.uid === 'guest-user') {
-        const localAudits = JSON.parse(localStorage.getItem('guest_model_audits') || '[]');
-        result.id = `guest_model_${Date.now()}`;
-        localAudits.push(result);
-        localStorage.setItem('guest_model_audits', JSON.stringify(localAudits));
-      } else {
-        const path = 'model_audits';
-        try {
-          const docRef = await addDoc(collection(db, 'model_audits'), result);
-          result.id = docRef.id;
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, path);
-        }
-      }
-
       setAnalysisProgress(100);
+      clearInterval(interval);
       setTimeout(() => {
         onComplete(result);
       }, 500);
@@ -136,6 +134,7 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
       console.error("Analysis Error:", error);
       setError(error.message || "An unexpected error occurred during neural processing.");
       setIsAnalyzing(false);
+      clearInterval(interval);
     }
   };
 
@@ -190,7 +189,7 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
                 {isParsing ? "PARSING DATA..." : "DROP DATASET HERE"}
               </h3>
               <p className="text-text-secondary max-w-md text-lg">
-                Upload a CSV file containing actual outcomes, model predictions, and protected attributes.
+                Upload a CSV file containing your dataset features and actual outcomes.
               </p>
             </Card>
           </motion.div>
@@ -252,21 +251,14 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
                 <div className="space-y-6">
                   <ConfigSelect 
                     label="Actual Outcome" 
-                    description="The real ground truth (0 or 1)."
+                    description="The target variable to predict."
                     value={actualCol}
                     onChange={setActualCol}
                     options={columns}
                   />
                   <ConfigSelect 
-                    label="Predicted Outcome" 
-                    description="The model's prediction (0 or 1)."
-                    value={predictedCol}
-                    onChange={setPredictedCol}
-                    options={columns}
-                  />
-                  <ConfigSelect 
                     label="Protected Attribute" 
-                    description="The group column (e.g., Gender, Race)."
+                    description="The group column to test for fairness (e.g., Gender, Race)."
                     value={protectedCol}
                     onChange={setProtectedCol}
                     options={columns}
@@ -275,10 +267,10 @@ export function ModelAuditPage({ user, onComplete }: ModelAuditPageProps) {
 
                 <Button 
                   onClick={handleStartAnalysis}
-                  disabled={!actualCol || !predictedCol || !protectedCol}
+                  disabled={!actualCol || !protectedCol}
                   className="w-full mt-8 bg-accent-cyan hover:bg-accent-cyan/80 text-primary-bg font-display font-semibold py-6 rounded-2xl glow-cyan"
                 >
-                  START AUDIT
+                  TRAIN & COMPARE MODELS
                 </Button>
               </Card>
             </div>

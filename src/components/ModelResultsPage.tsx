@@ -13,27 +13,64 @@ import {
   ResponsiveContainer, Cell, Legend
 } from 'recharts';
 import { cn } from '@/src/lib/utils';
-import { ModelAuditResult } from '../types';
+import jsPDF from 'jspdf';
 
 interface ModelResultsPageProps {
-  result: ModelAuditResult;
+  result: any; // We changed this from ModelAuditResult to any to handle our backend response
   onBack: () => void;
 }
 
 export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
-  const groups = Object.keys(result.metrics.accuracyPerGroup);
+  const backendData = result.backendResults;
   
-  const chartData = groups.map(group => ({
-    name: group,
-    accuracy: (result.metrics.accuracyPerGroup[group] * 100).toFixed(1),
-    fpr: (result.metrics.fprPerGroup[group] * 100).toFixed(1),
-    fnr: (result.metrics.fnrPerGroup[group] * 100).toFixed(1),
+  if (!backendData || !backendData.results) {
+    return (
+      <div className="p-8 text-center text-white">
+        Invalid data from backend. Please try again.
+        <Button onClick={onBack} className="mt-4 bg-accent-cyan text-primary-bg">Go Back</Button>
+      </div>
+    );
+  }
+
+  const modelResults = backendData.results;
+  
+  // Data for comparison chart
+  const comparisonChartData = modelResults.map((r: any) => ({
+    name: r.model,
+    accuracy: (r.accuracy * 100).toFixed(1),
+    fairness: (Math.max(0, 100 - (r.fairness.demographicParityDiff * 100))).toFixed(1),
+    parityDiff: r.fairness.demographicParityDiff.toFixed(3)
   }));
 
-  // Find worst performing group
-  const worstAccuracy = Math.min(...Object.values(result.metrics.accuracyPerGroup));
-  const worstGroup = groups.find(g => result.metrics.accuracyPerGroup[g] === worstAccuracy);
-  const accuracyGap = (Math.max(...Object.values(result.metrics.accuracyPerGroup)) - worstAccuracy) * 100;
+  const bestAccuracyModel = modelResults.reduce((prev: any, curr: any) => curr.accuracy > prev.accuracy ? curr : prev);
+  const bestFairnessModel = modelResults.reduce((prev: any, curr: any) => curr.fairness.demographicParityDiff < prev.fairness.demographicParityDiff ? curr : prev);
+
+  const generateModelPDF = () => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    doc.setFillColor(13, 17, 23);
+    doc.rect(0, 0, 210, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text("MODEL COMPARISON REPORT", 20, 20);
+    
+    doc.setTextColor(13, 17, 23);
+    doc.setFontSize(14);
+    doc.text(`Dataset: ${result.datasetName}`, 20, 50);
+    doc.text(`Target: ${backendData.outcome_column} | Protected: ${backendData.protected_column}`, 20, 60);
+    
+    let y = 80;
+    modelResults.forEach((r: any) => {
+      doc.setFontSize(14);
+      doc.text(`Model: ${r.model}`, 20, y);
+      doc.setFontSize(12);
+      doc.text(`Accuracy: ${(r.accuracy * 100).toFixed(2)}%`, 30, y + 10);
+      doc.text(`Demographic Parity Diff: ${r.fairness.demographicParityDiff.toFixed(3)}`, 30, y + 20);
+      doc.text(`Disparate Impact: ${r.fairness.disparateImpactRatio.toFixed(3)}`, 30, y + 30);
+      y += 50;
+    });
+
+    doc.save(`Model_Comparison_${result.datasetName}.pdf`);
+  };
 
   return (
     <motion.div 
@@ -50,15 +87,11 @@ export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
             Back
           </Button>
           <div className="h-8 w-[1px] bg-white/10" />
-          <h1 className="text-3xl font-display font-semibold text-white tracking-wide">MODEL AUDIT RESULTS</h1>
+          <h1 className="text-3xl font-display font-semibold text-white tracking-wide">MODEL COMPARISON</h1>
         </div>
         
         <div className="flex gap-4">
-          <Button variant="outline" className="border-white/10 text-white hover:bg-white/5 rounded-2xl">
-            <Share2 className="w-4 h-4 mr-2" />
-            Share
-          </Button>
-          <Button className="bg-accent-cyan hover:bg-accent-cyan/80 text-primary-bg font-display font-semibold px-6 rounded-2xl glow-cyan">
+          <Button onClick={generateModelPDF} className="bg-accent-cyan hover:bg-accent-cyan/80 text-primary-bg font-display font-semibold px-6 rounded-2xl glow-cyan">
             <Download className="w-4 h-4 mr-2" />
             EXPORT PDF
           </Button>
@@ -69,83 +102,76 @@ export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className={cn(
-          "relative overflow-hidden glass rounded-[2.5rem] p-12 border bg-gradient-to-r flex flex-col md:flex-row items-center justify-between gap-12",
-          accuracyGap > 10 ? "from-danger-red/20 to-primary-bg border-danger-red/20" : "from-success-neon/20 to-primary-bg border-success-neon/20"
-        )}
+        className="relative overflow-hidden glass rounded-[2.5rem] p-12 border bg-gradient-to-r from-accent-cyan/20 to-primary-bg border-accent-cyan/20 flex flex-col md:flex-row items-center justify-between gap-12"
       >
         <div className="space-y-6 text-center md:text-left">
           <Badge className="bg-white/10 text-white border-white/20 px-4 py-1 text-xs font-display tracking-wide">
-            MODEL PERFORMANCE AUDIT
+            AI MODEL COMPARISON
           </Badge>
-          <h2 className="text-5xl md:text-6xl font-display font-semibold text-white tracking-tighter">
-            {accuracyGap > 10 ? "BIAS DETECTED" : "OPTIMAL PERFORMANCE"}
+          <h2 className="text-4xl md:text-5xl font-display font-semibold text-white tracking-tighter">
+            {backendData.protected_column} Fairness Analysis
           </h2>
           <p className="text-xl text-white/70 max-w-xl font-medium">
-            {accuracyGap > 10 
-              ? `The model performs significantly worse for the ${worstGroup} group with a ${accuracyGap.toFixed(1)}% accuracy gap.`
-              : "Model performance is consistent across all protected groups."}
+            We trained multiple models. &apos;{bestFairnessModel.model}&apos; is the most fair while &apos;{bestAccuracyModel.model}&apos; has the highest accuracy.
           </p>
         </div>
         
-        <div className="relative w-48 h-48 flex items-center justify-center">
-          <div className={cn(
-            "absolute inset-0 blur-3xl opacity-30 rounded-full",
-            accuracyGap > 10 ? "bg-danger-red" : "bg-success-neon"
-          )} />
-          <div className="relative z-10 flex flex-col items-center">
-            <span className="text-5xl font-display font-semibold text-white">{(worstAccuracy * 100).toFixed(0)}%</span>
-            <span className="text-xs font-display text-white/50 uppercase tracking-wide">Min Accuracy</span>
+        <div className="flex gap-6">
+          <div className="text-center bg-white/5 p-6 rounded-3xl border border-white/10">
+             <div className="text-3xl font-bold text-success-neon">{(bestAccuracyModel.accuracy*100).toFixed(1)}%</div>
+             <div className="text-xs text-text-secondary uppercase mt-2">Max Accuracy</div>
+          </div>
+          <div className="text-center bg-white/5 p-6 rounded-3xl border border-white/10">
+             <div className="text-3xl font-bold text-accent-purple">{bestFairnessModel.model}</div>
+             <div className="text-xs text-text-secondary uppercase mt-2">Fairest Model</div>
           </div>
         </div>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Accuracy Chart */}
-        <Card className="glass border-white/5 rounded-3xl overflow-hidden">
+        {/* Comparison Chart */}
+        <Card className="glass border-white/5 rounded-3xl overflow-hidden cursor-default">
           <CardHeader>
             <CardTitle className="text-xl font-display text-white flex items-center gap-2">
               <Target className="w-5 h-5 text-accent-cyan" />
-              ACCURACY BY GROUP
+              ACCURACY VS FAIRNESS
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[350px] pt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
+              <BarChart data={comparisonChartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8892b0', fontSize: 11 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8892b0', fontSize: 11 }} domain={[0, 100]} />
                 <RechartsTooltip contentStyle={{ backgroundColor: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                <Bar dataKey="accuracy" fill="#00d4ff" radius={[6, 6, 0, 0]} animationDuration={2000}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={Number(entry.accuracy) < 80 ? '#ff2d55' : '#00d4ff'} />
-                  ))}
-                </Bar>
+                <Legend verticalAlign="top" height={36}/>
+                <Bar name="Accuracy (%)" dataKey="accuracy" fill="#00d4ff" radius={[6, 6, 0, 0]} animationDuration={2000} />
+                <Bar name="Fairness Score (%)" dataKey="fairness" fill="#7c3aed" radius={[6, 6, 0, 0]} animationDuration={2000} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        {/* Error Rates Chart */}
-        <Card className="glass border-white/5 rounded-3xl overflow-hidden">
+        {/* Recommendations */}
+        <Card className="glass border-white/5 rounded-3xl overflow-hidden cursor-default">
           <CardHeader>
-            <CardTitle className="text-xl font-display text-white flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-warning-orange" />
-              ERROR RATES (FPR & FNR)
-            </CardTitle>
+             <CardTitle className="text-xl font-display text-white flex items-center gap-2">
+               <AlertTriangle className="w-5 h-5 text-warning-orange" />
+               BIAS MITIGATION SUGGESTIONS
+             </CardTitle>
           </CardHeader>
-          <CardContent className="h-[350px] pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8892b0', fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#8892b0', fontSize: 11 }} />
-                <RechartsTooltip contentStyle={{ backgroundColor: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
-                <Legend verticalAlign="top" height={36}/>
-                <Bar name="False Positive Rate" dataKey="fpr" fill="#ff6b35" radius={[6, 6, 0, 0]} animationDuration={2000} />
-                <Bar name="False Negative Rate" dataKey="fnr" fill="#7c3aed" radius={[6, 6, 0, 0]} animationDuration={2000} />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent className="space-y-4">
+             {backendData.recommendations && backendData.recommendations.map((rec: any, idx: number) => (
+                <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10 flex gap-4">
+                   <div className="w-10 h-10 rounded-full bg-warning-orange/10 flex items-center justify-center shrink-0 border border-warning-orange/20 text-warning-orange">
+                      <AlertTriangle className="w-5 h-5" />
+                   </div>
+                   <div>
+                      <h4 className="text-sm font-bold text-white flex flex-row justify-between items-center">{rec.title} <Badge className="text-[10px] ml-2">{rec.severity}</Badge></h4>
+                      <p className="text-xs text-text-secondary mt-1">{rec.description}</p>
+                   </div>
+                </div>
+             ))}
           </CardContent>
         </Card>
       </div>
@@ -162,36 +188,23 @@ export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
           <table className="w-full text-left">
             <thead className="bg-white/5 border-b border-white/5">
               <tr>
-                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Group</th>
+                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Model</th>
                 <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Accuracy</th>
-                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">False Positive Rate</th>
-                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">False Negative Rate</th>
-                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Status</th>
+                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Demographic Parity Diff</th>
+                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Disparate Impact</th>
+                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Equal Opportunity Diff</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {groups.map(group => {
-                const acc = result.metrics.accuracyPerGroup[group];
-                const fpr = result.metrics.fprPerGroup[group];
-                const fnr = result.metrics.fnrPerGroup[group];
-                const isWorst = group === worstGroup;
-                
-                return (
-                  <tr key={group} className="hover:bg-white/5 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium text-white">{group}</td>
-                    <td className="px-6 py-4 text-sm text-white/70">{(acc * 100).toFixed(1)}%</td>
-                    <td className="px-6 py-4 text-sm text-white/70">{(fpr * 100).toFixed(1)}%</td>
-                    <td className="px-6 py-4 text-sm text-white/70">{(fnr * 100).toFixed(1)}%</td>
-                    <td className="px-6 py-4">
-                      {isWorst && accuracyGap > 5 ? (
-                        <Badge className="bg-danger-red/10 text-danger-red border-danger-red/20">Underperforming</Badge>
-                      ) : (
-                        <Badge className="bg-success-neon/10 text-success-neon border-success-neon/20">Optimal</Badge>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {modelResults.map((r: any) => (
+                <tr key={r.model} className="hover:bg-white/5 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-white">{r.model}</td>
+                  <td className="px-6 py-4 text-sm text-white/70">{(r.accuracy * 100).toFixed(1)}%</td>
+                  <td className="px-6 py-4 text-sm text-white/70">{r.fairness.demographicParityDiff.toFixed(3)}</td>
+                  <td className="px-6 py-4 text-sm text-white/70">{r.fairness.disparateImpactRatio.toFixed(3)}</td>
+                  <td className="px-6 py-4 text-sm text-white/70">{r.fairness.equalOpportunityDiff.toFixed(3)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </CardContent>

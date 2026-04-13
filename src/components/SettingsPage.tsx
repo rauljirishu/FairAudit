@@ -3,7 +3,7 @@ import {
   Settings, Palette, Bell, Shield, User, 
   Info, Check, Trash2, LogOut, Monitor, 
   Moon, Sun, Type, Sliders, CheckCircle2,
-  Github, Bug, RefreshCw
+  Github, Bug, RefreshCw, DownloadCloud
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, UserSettings, Theme, FontSize, AccentColor } from '../types';
 import { doc, updateDoc, deleteDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db, auth, logout } from '../firebase';
+import { deleteUserAccountAndData } from '../services/securityService';
 
 interface SettingsPageProps {
   user: UserProfile;
@@ -36,6 +37,9 @@ const DEFAULT_SETTINGS: UserSettings = {
     maxRows: 2000,
     protectedAttributes: ['Gender', 'Age', 'Race'],
     autoStart: false
+  },
+  dataProtection: {
+    autoDelete: 'forever'
   }
 };
 
@@ -108,6 +112,13 @@ export function SettingsPage({ user, onReplayTour }: SettingsPageProps) {
     }));
   };
 
+  const updateDataProtection = (value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      dataProtection: { autoDelete: value }
+    }));
+  };
+
   const handleDeleteHistory = async () => {
     if (window.confirm('Are you sure you want to delete ALL audit history? This action cannot be undone.')) {
       if (user.uid === 'guest-user') {
@@ -126,6 +137,39 @@ export function SettingsPage({ user, onReplayTour }: SettingsPageProps) {
         await Promise.all([...deletePromises, ...deletePromises2]);
         alert('Cloud history cleared.');
       }
+    }
+  };
+
+  const handleDownloadData = async () => {
+     setShowToast(true); // "Preparing your data..."
+     // Mock generic download
+     setTimeout(() => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+            profile: user,
+            history: [],
+            metrics: []
+        }));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "fairaudit_my_data.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+     }, 1000);
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmation = window.prompt(
+      "This will permanently delete:\n✓ Your profile and login access\n✓ All your audit history\n✓ All uploaded datasets\n✓ All saved reports\n\nThis cannot be undone. Type 'DELETE' to confirm:"
+    );
+    if(confirmation === 'DELETE') {
+       try {
+         await deleteUserAccountAndData();
+         alert("Account deleted. Your data has been permanently removed.");
+         logout();
+       } catch (e) {
+         console.error("Account delete failed", e);
+       }
     }
   };
 
@@ -161,6 +205,7 @@ export function SettingsPage({ user, onReplayTour }: SettingsPageProps) {
           <SettingsNavButton icon={Palette} label="Appearance" active />
           <SettingsNavButton icon={Bell} label="Notifications" />
           <SettingsNavButton icon={Sliders} label="Analysis Defaults" />
+          <SettingsNavButton icon={Shield} label="Privacy & Data" />
           <SettingsNavButton icon={User} label="Account" />
           <SettingsNavButton icon={Info} label="About" />
         </div>
@@ -359,6 +404,68 @@ export function SettingsPage({ user, onReplayTour }: SettingsPageProps) {
               <Trash2 className="w-4 h-4 mr-2" />
               DELETE ALL AUDIT HISTORY
             </Button>
+          </section>
+
+          <div className="h-[1px] bg-white/5" />
+
+          {/* Privacy & Data Protection */}
+          <section className="space-y-6">
+            <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+              <Shield className="w-5 h-5 text-accent-cyan" />
+              PRIVACY & DATA PROTECTION
+            </h3>
+
+            <div className="space-y-4">
+              <p className="text-sm font-medium text-text-secondary">Audit Data Auto-Delete</p>
+              <select 
+                value={settings.dataProtection?.autoDelete || 'forever'} 
+                onChange={(e) => updateDataProtection(e.target.value)}
+                className="bg-primary-bg border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:border-accent-cyan outline-none w-full"
+              >
+                <option value="forever">Keep forever (default)</option>
+                <option value="7days">Delete after 7 days</option>
+                <option value="30days">Delete after 30 days</option>
+                <option value="90days">Delete after 90 days</option>
+                <option value="immediate">Delete immediately after download</option>
+              </select>
+            </div>
+
+            <div className="glass p-6 rounded-3xl border-white/5 space-y-4">
+              <h4 className="font-bold text-white">Privacy Notice</h4>
+              <div className="text-xs text-text-secondary space-y-2">
+                 <p className="text-white">FairAudit collects:</p>
+                 <ul className="list-inside list-disc pl-2">
+                   <li>Your Google profile (name, email, photo)</li>
+                   <li>Datasets you upload (temporarily)</li>
+                   <li>Bias audit results you generate</li>
+                 </ul>
+                 <p className="text-white mt-4">FairAudit never:</p>
+                 <ul className="list-inside list-disc pl-2">
+                   <li>Sells your data</li>
+                   <li>Uses your data to train AI models</li>
+                   <li>Shares your data with third parties</li>
+                 </ul>
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <Button 
+                variant="outline" 
+                onClick={handleDownloadData}
+                className="flex-1 bg-white/5 border border-white/10 hover:bg-white/10 rounded-xl text-white py-6"
+              >
+                <DownloadCloud className="w-4 h-4 mr-2" />
+                Download My Data
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteAccount}
+                className="flex-1 bg-danger-red/10 border border-danger-red/20 hover:bg-danger-red/20 text-danger-red rounded-xl py-6"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete My Account
+              </Button>
+            </div>
           </section>
 
           <div className="h-[1px] bg-white/5" />

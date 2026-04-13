@@ -2,16 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { 
   Download, ArrowLeft, Brain, BadgeCheck, ShieldAlert, 
   AlertCircle, Users, Activity, Share2, Sparkles, ChevronRight,
-  Database, Sliders, AlertTriangle, Loader2, CheckCircle2
+  Database, Sliders, AlertTriangle, Loader2, CheckCircle2, Trophy, Clock
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { AuditResult, Severity, UserProfile, Recommendation } from '../types';
+import { AuditResult, Severity, UserProfile, Recommendation, Comment } from '../types';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
   ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts';
+import { Switch } from '@/components/ui/switch';
+import { publishToLeaderboard, getComments, addComment } from '../services/featureService';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { SeverityMeter } from './SeverityMeter';
@@ -28,6 +30,15 @@ export function ResultsPage({ result, user, onBack }: ResultsPageProps) {
   const [showContent, setShowContent] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [toastMsg, setToastMsg] = useState('REPORT DOWNLOADED!');
+  const [isPublic, setIsPublic] = useState(result.isPublicLeaderboard || false);
+  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState<Comment[]>([]);
+
+  useEffect(() => {
+    const fetchC = async () => { if(result.id) setComments(await getComments(result.id)); };
+    fetchC();
+  }, [result.id]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowContent(true), 500);
@@ -215,6 +226,37 @@ export function ResultsPage({ result, user, onBack }: ResultsPageProps) {
     }
   };
 
+  const handleToggleLeaderboard = async (v: boolean) => {
+     setIsPublic(v);
+     if (v && result.id) {
+        await publishToLeaderboard(result.id, {
+            auditId: result.id,
+            domain: result.datasetName,
+            fairnessScore: result.fairnessScore,
+            severity: result.severity,
+            date: new Date().toISOString()
+        });
+        setToastMsg("Added to Leaderboard!");
+        setShowToast(true);
+        setTimeout(()=>setShowToast(false), 2000);
+     }
+  };
+
+  const handleAddComment = async () => {
+      if(!commentText.trim() || !result.id) return;
+      await addComment(result.id, commentText);
+      setComments(await getComments(result.id));
+      setCommentText('');
+  };
+
+  const getRetentionBadge = () => {
+     if(!result.deleteAfter) return <span className="text-xs px-2 py-1 bg-white/5 text-text-secondary rounded border border-white/10">No expiry</span>;
+     const days = Math.ceil((new Date(result.deleteAfter).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+     if(days < 0) return null;
+     if(days < 7) return <span className="text-xs px-2 py-1 bg-danger-red/10 text-danger-red rounded border border-danger-red/20 flex items-center gap-1"><Clock className="w-3 h-3"/> Expires in {days} days</span>;
+     return <span className="text-xs px-2 py-1 bg-warning-orange/10 text-warning-orange rounded border border-warning-orange/20 flex items-center gap-1"><Clock className="w-3 h-3"/> Expires in {days} days</span>;
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -231,7 +273,7 @@ export function ResultsPage({ result, user, onBack }: ResultsPageProps) {
             className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-success-neon text-primary-bg px-6 py-3 rounded-full font-display font-bold flex items-center gap-2 shadow-lg glow-success"
           >
             <CheckCircle2 className="w-5 h-5" />
-            REPORT DOWNLOADED!
+            {toastMsg}
           </motion.div>
         )}
       </AnimatePresence>
@@ -247,7 +289,8 @@ export function ResultsPage({ result, user, onBack }: ResultsPageProps) {
           <h1 className="text-3xl font-display font-semibold text-white tracking-wide">AUDIT RESULTS</h1>
         </div>
         
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          {getRetentionBadge()}
           <Button variant="outline" className="border-white/10 text-white hover:bg-white/5 rounded-2xl">
             <Share2 className="w-4 h-4 mr-2" />
             Share
@@ -425,7 +468,40 @@ export function ResultsPage({ result, user, onBack }: ResultsPageProps) {
                     </div>
                   </motion.div>
                 ))}
-              </AnimatePresence>
+               </AnimatePresence>
+            </div>
+
+            <Card className="glass border-accent-gold/20 rounded-3xl overflow-hidden relative">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-white font-display">
+                  <Trophy className="w-6 h-6 text-accent-gold" />
+                  Public Leaderboard
+                </CardTitle>
+                <Switch checked={isPublic} onCheckedChange={handleToggleLeaderboard} disabled={isPublic} className="data-[state=checked]:bg-accent-gold" />
+              </CardHeader>
+              <CardContent>
+                 <p className="text-sm text-text-secondary">Make this audit public to the community leaderboard. This is anonymous.</p>
+              </CardContent>
+            </Card>
+
+            <div className="glass p-6 rounded-3xl border-white/5 mt-8">
+               <h3 className="font-display font-bold text-white mb-4">Team Comments</h3>
+               <div className="space-y-4 mb-4 max-h-60 overflow-y-auto pr-2">
+                   {comments.map(c => (
+                      <div key={c.id} className="flex gap-3">
+                         <img src={c.userAvatar || `https://ui-avatars.com/api/?name=${c.userName}`} className="w-8 h-8 rounded-full border border-white/10" />
+                         <div className="bg-white/5 rounded-2xl rounded-tl-none p-3 border border-white/5 flex-1">
+                            <p className="text-xs font-bold text-white mb-1">{c.userName} <span className="font-normal text-text-secondary ml-2">{new Date(c.timestamp).toLocaleString()}</span></p>
+                            <p className="text-sm text-white/90">{c.text}</p>
+                         </div>
+                      </div>
+                   ))}
+                   {comments.length === 0 && <p className="text-xs text-text-secondary">No comments yet.</p>}
+               </div>
+               <div className="flex gap-2">
+                   <input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 outline-none text-sm text-white focus:border-accent-cyan" />
+                   <button onClick={handleAddComment} className="bg-accent-cyan text-primary-bg px-4 py-2 rounded-xl text-sm font-bold">Post</button>
+               </div>
             </div>
           </div>
         </div>

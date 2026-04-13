@@ -9,7 +9,13 @@ import {
   Bell,
   ChevronRight,
   Brain,
-  Settings
+  Settings,
+  Scale,
+  ActivitySquare,
+  Users,
+  Trophy,
+  History as Clock,
+  ShieldAlert
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { UserProfile } from '../types';
@@ -24,14 +30,22 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab, user, onLogout }: SidebarProps) {
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'new-audit', label: 'New Audit', icon: PlusCircle },
-    { id: 'model-audit', label: 'Model Audit', icon: Brain },
-    { id: 'history', label: 'Audit History', icon: History },
-    { id: 'how-it-works', label: 'How It Works', icon: Info },
-    { id: 'settings', label: 'Settings', icon: Settings },
+  let menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'analyst', 'viewer'] },
+    { id: 'new-audit', label: 'New Audit', icon: PlusCircle, roles: ['admin', 'analyst'] },
+    { id: 'model-audit', label: 'Model Audit', icon: Brain, roles: ['admin', 'analyst'] },
+    { id: 'compare', label: 'Compare', icon: Scale, roles: ['admin', 'analyst', 'viewer'] },
+    { id: 'monitor', label: 'Monitor', icon: ActivitySquare, roles: ['admin', 'analyst'] },
+    { id: 'team', label: 'Team', icon: Users, roles: ['admin', 'analyst', 'viewer'] },
+    { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, roles: ['admin', 'analyst', 'viewer'] },
+    { id: 'history', label: 'Audit History', icon: History, roles: ['admin', 'analyst', 'viewer'] },
+    { id: 'audit-logs', label: 'Audit Logs', icon: Clock, roles: ['admin', 'analyst', 'viewer'] },
+    { id: 'admin-panel', label: 'Admin Panel', icon: ShieldAlert, roles: ['admin'] },
+    { id: 'how-it-works', label: 'How It Works', icon: Info, roles: ['admin', 'analyst', 'viewer'] },
+    { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin', 'analyst', 'viewer'] },
   ];
+
+  menuItems = menuItems.filter(item => item.roles.includes(user.role || 'analyst'));
 
   return (
     <div className="w-72 h-screen glass border-r border-white/5 flex flex-col relative z-20">

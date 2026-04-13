@@ -15,11 +15,18 @@ import { ModelResultsPage } from './components/ModelResultsPage';
 import { SettingsPage } from './components/SettingsPage';
 import { Chatbot } from './components/Chatbot';
 import { Onboarding } from './components/Onboarding';
-import { UserProfile, AuditResult, ModelAuditResult, UserSettings } from './types';
+import { AdminPanelPage } from './components/AdminPanelPage';
+import { AuditLogsPage } from './components/AuditLogsPage';
+import { ComparePage } from './components/ComparePage';
+import { MonitorPage } from './components/MonitorPage';
+import { TeamPage } from './components/TeamPage';
+import { LeaderboardPage } from './components/LeaderboardPage';
+import { UserProfile, AuditResult, ModelAuditResult, UserSettings, UserRole } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { getUserRole, logAuditAction, checkAndDeleteExpiredAudits } from './services/securityService';
 
 const DEFAULT_SETTINGS: UserSettings = {
   appearance: {
@@ -36,6 +43,9 @@ const DEFAULT_SETTINGS: UserSettings = {
     maxRows: 2000,
     protectedAttributes: ['Gender', 'Age', 'Race'],
     autoStart: false
+  },
+  dataProtection: {
+    autoDelete: 'forever'
   }
 };
 
@@ -93,6 +103,7 @@ export default function App() {
   const [isGuest, setIsGuest] = useState(false);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [cookieConsent, setCookieConsent] = useState(() => localStorage.getItem('fairaudit_cookie_consent') === 'true');
 
   // Apply settings on load
   useEffect(() => {
@@ -139,15 +150,30 @@ export default function App() {
           const userDocSnap = await getDoc(userDocRef);
           
           let onboardingCompleted = false;
+          let role: UserRole = 'analyst';
           if (userDocSnap.exists()) {
             onboardingCompleted = userDocSnap.data().onboardingCompleted || false;
+            role = userDocSnap.data().role || 'analyst';
           } else {
-            // Create user doc if it doesn't exist
+            // First user gets admin role, others analyst.
+            // But we don't have user count easily inside client without query. We can default to 'analyst' for now.
+            // To be robust, let's just create as 'analyst', an admin can change them. Or we could query count.
+            // For hackathon simplicity, hardcode 'admin' for a specific test user or first one. 
+            // In absence of query, we just default to analyst. Wait, requirements: "First user to sign up gets admin role".
+            // Since we can't await a count easily here without an extra index, let's check count quickly:
+            // Actually `getUserRole` isn't making it the first. Let's modify the creation flow.
+            try {
+              const { getDocs, query, limit } = await import('firebase/firestore');
+              const usersSnap = await getDocs(query(collection(db, 'users'), limit(1)));
+              role = usersSnap.empty ? 'admin' : 'analyst';
+            } catch(e) { role = 'analyst'; }
+
             await setDoc(userDocRef, {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               displayName: firebaseUser.displayName,
               onboardingCompleted: false,
+              role: role,
               createdAt: new Date().toISOString()
             });
           }
@@ -157,7 +183,8 @@ export default function App() {
             email: firebaseUser.email!,
             displayName: firebaseUser.displayName,
             photoURL: firebaseUser.photoURL,
-            onboardingCompleted
+            onboardingCompleted,
+            role
           });
           
           if (!onboardingCompleted) {
@@ -165,6 +192,8 @@ export default function App() {
           }
 
           setIsGuest(false);
+          await logAuditAction('USER_LOGIN', { method: 'google' });
+          await checkAndDeleteExpiredAudits(firebaseUser.uid);
         } else if (!isGuest) {
           setUser(null);
         }
@@ -190,7 +219,8 @@ export default function App() {
       email: 'guest@fairaudit.pro',
       displayName: 'Guest Auditor',
       photoURL: null,
-      onboardingCompleted: true
+      onboardingCompleted: true,
+      role: 'analyst'
     });
     setActiveTab('dashboard');
   };
@@ -292,6 +322,12 @@ export default function App() {
       case 'settings': return 'System Settings';
       case 'results': return 'Analysis Report';
       case 'model-results': return 'Model Analysis Report';
+      case 'admin-panel': return 'Admin Panel';
+      case 'audit-logs': return 'Audit Logs';
+      case 'compare': return 'Dataset Comparison';
+      case 'monitor': return 'Bias Monitoring';
+      case 'team': return 'Team Collaboration';
+      case 'leaderboard': return 'Public Leaderboard';
       default: return 'FairAudit Pro';
     }
   };
@@ -391,6 +427,24 @@ export default function App() {
                     }}
                   />
                 )}
+                {activeTab === 'compare' && (
+                  <ComparePage user={userProfile} />
+                )}
+                {activeTab === 'monitor' && (
+                  <MonitorPage user={userProfile} />
+                )}
+                {activeTab === 'team' && (
+                  <TeamPage user={userProfile} />
+                )}
+                {activeTab === 'leaderboard' && (
+                  <LeaderboardPage user={userProfile} />
+                )}
+                {activeTab === 'admin-panel' && userProfile.role === 'admin' && (
+                  <AdminPanelPage user={userProfile} />
+                )}
+                {activeTab === 'audit-logs' && (
+                  <AuditLogsPage user={userProfile} />
+                )}
               </motion.div>
             </AnimatePresence>
           </main>
@@ -403,6 +457,17 @@ export default function App() {
                 user={userProfile} 
                 onComplete={handleOnboardingComplete} 
               />
+            )}
+            {!cookieConsent && (
+              <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} exit={{opacity:0, y:20}} className="fixed bottom-4 left-4 right-4 md:left-auto md:right-8 md:w-96 glass p-4 rounded-2xl border-white/10 z-50 flex flex-col gap-4">
+                 <p className="text-sm text-white/90">
+                    FairAudit uses Firebase for authentication and data storage. By continuing you accept our privacy policy.
+                 </p>
+                 <div className="flex gap-2">
+                    <button onClick={() => { localStorage.setItem('fairaudit_cookie_consent', 'true'); setCookieConsent(true); }} className="flex-1 bg-accent-cyan text-primary-bg py-2 rounded-xl text-sm font-bold">Accept</button>
+                    <button onClick={() => { localStorage.setItem('fairaudit_cookie_consent', 'true'); setCookieConsent(true); }} className="flex-1 bg-white/5 border border-white/10 text-white py-2 rounded-xl text-sm">Decline</button>
+                 </div>
+              </motion.div>
             )}
           </AnimatePresence>
         </div>

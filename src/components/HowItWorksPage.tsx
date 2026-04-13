@@ -115,7 +115,7 @@ export function HowItWorksPage() {
         </div>
 
         <div className="glass rounded-[2.5rem] border-white/5 p-8">
-          <Accordion className="w-full space-y-4">
+          <Accordion type="single" collapsible className="w-full space-y-4">
             {faqs.map((faq, i) => (
               <AccordionItem key={i} value={`item-${i}`} className="border-white/5 px-4">
                 <AccordionTrigger className="text-left text-white font-bold hover:text-accent-cyan transition-colors py-6">

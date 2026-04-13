@@ -74,6 +74,18 @@ export function Navbar({ user, title, onSettings, onLogout }: NavbarProps) {
                       description="Neural core updated to v2.4.5."
                       icon={<Info className="w-4 h-4 text-accent-cyan" />}
                     />
+                    <NotificationItem 
+                      title="Team Alert" 
+                      time="2h ago" 
+                      description="John shared an audit with you."
+                      icon={<Info className="w-4 h-4 text-accent-purple" />}
+                    />
+                    <NotificationItem 
+                      title="Monitor Alert" 
+                      time="3h ago" 
+                      description="⚠️ Monitor Alert: hiring dataset bias increased."
+                      icon={<Info className="w-4 h-4 text-danger-red" />}
+                    />
                     <div className="p-8 text-center">
                       <p className="text-xs text-text-secondary">No more notifications</p>
                     </div>
@@ -99,7 +111,9 @@ export function Navbar({ user, title, onSettings, onLogout }: NavbarProps) {
           >
             <div className="text-right hidden sm:block">
               <p className="text-xs font-bold text-white group-hover:text-accent-cyan transition-colors">{user.displayName || 'User'}</p>
-              <p className="text-[10px] text-accent-cyan font-display uppercase tracking-tighter">Pro Member</p>
+              {user.role === 'admin' && <span className="text-[10px] text-accent-gold font-display uppercase tracking-tighter bg-accent-gold/10 px-2 py-0.5 rounded-full border border-accent-gold/20">Admin</span>}
+              {user.role === 'viewer' && <span className="text-[10px] text-text-secondary font-display uppercase tracking-tighter bg-white/5 px-2 py-0.5 rounded-full border border-white/10">View Only</span>}
+              {(user.role === 'analyst' || !user.role) && <span className="text-[10px] text-accent-cyan font-display uppercase tracking-tighter bg-accent-cyan/10 px-2 py-0.5 rounded-full border border-accent-cyan/20">Analyst</span>}
             </div>
             <motion.img 
               whileHover={{ scale: 1.1 }}

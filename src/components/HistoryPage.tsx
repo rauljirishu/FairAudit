@@ -202,9 +202,20 @@ export function HistoryPage({ user, onViewAudit }: HistoryPageProps) {
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                           {(audit as any).type === 'model' ? (
                             <>
-                              <HistoryMetric label="Accuracy" value={`${((audit as ModelAuditResult).metrics.overall.accuracy * 100).toFixed(1)}%`} />
-                              <HistoryMetric label="F1 Score" value={(audit as ModelAuditResult).metrics.overall.f1.toFixed(3)} />
-                              <HistoryMetric label="Protected Attr" value={(audit as ModelAuditResult).protectedColumn} />
+                              <HistoryMetric 
+                                label="Accuracy" 
+                                value={
+                                  (audit as any).backendResults 
+                                    ? `${((audit as any).backendResults.results[0].accuracy * 100).toFixed(1)}%` 
+                                    : (audit as any).metrics?.overall?.accuracy !== undefined
+                                      ? `${((audit as any).metrics.overall.accuracy * 100).toFixed(1)}%` 
+                                      : 'N/A'
+                                } 
+                              />
+                              <HistoryMetric 
+                                label="Protected Attr" 
+                                value={(audit as any).protectedColumn || 'N/A'} 
+                              />
                             </>
                           ) : (
                             <>
