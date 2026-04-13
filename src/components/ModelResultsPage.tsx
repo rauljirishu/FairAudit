@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   ChevronLeft, Download, Share2, Brain, 
   Target, AlertTriangle, CheckCircle2, TrendingDown,
-  BarChart3, PieChart, Activity
+  BarChart3, PieChart as PieChartIcon, Activity
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -146,7 +146,7 @@ export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
         <Card className="glass border-white/5 rounded-3xl overflow-hidden cursor-default">
           <CardHeader>
              <CardTitle className="text-xl font-display text-white flex items-center gap-2">
-               <PieChart className="w-5 h-5 text-accent-purple" />
+               <PieChartIcon className="w-5 h-5 text-accent-purple" />
                DEMOGRAPHIC PARITY BREAKDOWN
              </CardTitle>
           </CardHeader>
