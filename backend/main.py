@@ -1,13 +1,15 @@
 import io
-import json
+import sys
+import os
 import pandas as pd
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from pydantic import BaseModel
+
+# Add the parent directory to the python path to import our modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from utils.metrics import compute_fairness_metrics
+from models.predictor import train_and_evaluate
 
 app = FastAPI()
 
@@ -18,49 +20,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-def compute_fairness_metrics(y_true, y_pred, sensitive_features):
-    df = pd.DataFrame({
-        'y_true': y_true,
-        'y_pred': y_pred,
-        'sensitive': sensitive_features
-    })
-    
-    unique_groups = df['sensitive'].unique()
-    selection_rates = {}
-    for group in unique_groups:
-        group_df = df[df['sensitive'] == group]
-        sr = group_df['y_pred'].mean()
-        selection_rates[str(group)] = sr
-        
-    rates = list(selection_rates.values())
-    if len(rates) >= 2:
-        max_rate = max(rates)
-        min_rate = min(rates)
-        demographic_parity_diff = max_rate - min_rate
-        disparate_impact_ratio = min_rate / max_rate if max_rate > 0 else 0
-    else:
-        demographic_parity_diff = 0
-        disparate_impact_ratio = 1
-        
-    # Equal opportunity difference (TPR diff)
-    tpr = {}
-    for group in unique_groups:
-        group_df = df[(df['sensitive'] == group) & (df['y_true'] == 1)]
-        if len(group_df) > 0:
-            tpr[str(group)] = group_df['y_pred'].mean()
-        else:
-            tpr[str(group)] = 0
-            
-    tprs = list(tpr.values())
-    equal_opportunity_diff = max(tprs) - min(tprs) if len(tprs) >= 2 else 0
-        
-    return {
-        "demographicParityDiff": demographic_parity_diff,
-        "disparateImpactRatio": disparate_impact_ratio,
-        "equalOpportunityDiff": equal_opportunity_diff,
-        "selectionRates": selection_rates
-    }
 
 @app.post("/api/audit-models")
 async def audit_models(file: UploadFile = File(...), outcome_column: str = Form(...), protected_column: str = Form(...)):
@@ -73,47 +32,17 @@ async def audit_models(file: UploadFile = File(...), outcome_column: str = Form(
     if outcome_column not in df.columns or protected_column not in df.columns:
         raise HTTPException(status_code=400, detail="Outcome or protected column not found in dataset")
         
-    # Preprocess
-    df = df.dropna(subset=[outcome_column, protected_column])
-    y = df[outcome_column]
-    X = df.drop(columns=[outcome_column])
+    results = train_and_evaluate(df, outcome_column, protected_column, compute_fairness_metrics)
     
-    # Sensitive attributes
-    sensitive_features = X[protected_column].copy()
-    
-    # Simple encoding for categorical features
-    X_encoded = pd.get_dummies(X, drop_first=True)
-    
-    X_train, X_test, y_train, y_test, sens_train, sens_test = train_test_split(
-        X_encoded, y, sensitive_features, test_size=0.3, random_state=42
-    )
-    
-    models = {
-        "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
-        "Random Forest": RandomForestClassifier(random_state=42)
-    }
-    
-    results = []
-    
-    for name, model in models.items():
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        
-        accuracy = accuracy_score(y_test, y_pred)
-        fairness = compute_fairness_metrics(y_test, y_pred, sens_test)
-        
-        results.append({
-            "model": name,
-            "accuracy": float(accuracy),
-            "fairness": fairness
-        })
-        
     # Identify bias mitigation recommendations
     recommendations = [
-        {"title": "Re-weighting", "description": "Assign different weights to instances based on their protected attribute class to reduce bias.", "severity": "MEDIUM", "icon": "sliders"},
-        {"title": "Remove Proxy Variables", "description": "Ensure no other variables strongly correlate with the protected attribute.", "severity": "HIGH", "icon": "warning"}
+        {"title": "Remove Sensitive Features", "description": "Drop any features serving as proxies for the protected attributes.", "severity": "HIGH", "icon": "warning"},
+        {"title": "Apply Re-sampling", "description": "Oversample the minority demographic group or undersample the overrepresented class to balance representation.", "severity": "MEDIUM", "icon": "database"},
+        {"title": "Fairness-Aware Algorithms", "description": "Consider adversarial debiasing or re-weighting strategies during model training.", "severity": "MEDIUM", "icon": "sliders"}
     ]
     
+    # Calculate a score out of 100 for the best model to show Fair/Moderate/Biased rating
+    # We will let the frontend display those strings
     return {
         "results": results,
         "recommendations": recommendations,

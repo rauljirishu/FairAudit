@@ -10,14 +10,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
-  ResponsiveContainer, Cell, Legend
+  ResponsiveContainer, Cell, Legend, PieChart, Pie, Sector
 } from 'recharts';
 import { cn } from '@/src/lib/utils';
 import jsPDF from 'jspdf';
 
 interface ModelResultsPageProps {
-  result: any; // We changed this from ModelAuditResult to any to handle our backend response
+  result: any; // backend response with {results, recommendations, protected_column, outcome_column}
   onBack: () => void;
+}
+
+function getFairnessLabel(score: number) {
+  if (score >= 80) return { label: 'Fair ✅', color: 'text-success-neon', bg: 'bg-success-neon/10 border-success-neon/20' };
+  if (score >= 50) return { label: 'Moderate ⚠️', color: 'text-warning-orange', bg: 'bg-warning-orange/10 border-warning-orange/20' };
+  return { label: 'Biased ❌', color: 'text-danger-red', bg: 'bg-danger-red/10 border-danger-red/20' };
 }
 
 export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
@@ -114,6 +120,11 @@ export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
           <p className="text-xl text-white/70 max-w-xl font-medium">
             We trained multiple models. &apos;{bestFairnessModel.model}&apos; is the most fair while &apos;{bestAccuracyModel.model}&apos; has the highest accuracy.
           </p>
+          {bestFairnessModel.most_important_feature && (
+            <p className="text-sm bg-white/5 p-3 rounded-xl border border-white/10 mt-4 leading-relaxed">
+               <strong className="text-accent-cyan">Explainable AI Insight:</strong> The model identified <strong className="text-white">"{bestFairnessModel.most_important_feature}"</strong> as the feature contributing most significantly to its decisions. If this feature correlates with demographics, it may be a proxy for bias.
+            </p>
+          )}
         </div>
         
         <div className="flex gap-6">
@@ -122,15 +133,50 @@ export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
              <div className="text-xs text-text-secondary uppercase mt-2">Max Accuracy</div>
           </div>
           <div className="text-center bg-white/5 p-6 rounded-3xl border border-white/10">
-             <div className="text-3xl font-bold text-accent-purple">{bestFairnessModel.model}</div>
-             <div className="text-xs text-text-secondary uppercase mt-2">Fairest Model</div>
+             <div className="text-3xl font-bold text-accent-cyan">{(Math.max(0, 100 - bestFairnessModel.fairness.demographicParityDiff * 100)).toFixed(1)}</div>
+             <div className="text-xs text-text-secondary uppercase mt-2">Best Fairness Score</div>
+             <div className={cn("text-sm font-bold mt-1", getFairnessLabel((Math.max(0, 100 - bestFairnessModel.fairness.demographicParityDiff * 100))).color)}>
+                {getFairnessLabel((Math.max(0, 100 - bestFairnessModel.fairness.demographicParityDiff * 100))).label}
+             </div>
           </div>
         </div>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Comparison Chart */}
         <Card className="glass border-white/5 rounded-3xl overflow-hidden cursor-default">
+          <CardHeader>
+             <CardTitle className="text-xl font-display text-white flex items-center gap-2">
+               <PieChart className="w-5 h-5 text-accent-purple" />
+               DEMOGRAPHIC PARITY BREAKDOWN
+             </CardTitle>
+          </CardHeader>
+          <CardContent className="h-[350px] pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+               <PieChart>
+                  <Pie 
+                    data={comparisonChartData} 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius={60} 
+                    outerRadius={100} 
+                    paddingAngle={5} 
+                    dataKey="parityDiff" 
+                    nameKey="name" 
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                     {comparisonChartData.map((entry: any, index: number) => (
+                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#7c3aed' : '#ff6b35'} />
+                     ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }} />
+                  <Legend verticalAlign="bottom" height={36} />
+               </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Comparison Chart */}
+        <Card className="glass border-white/5 rounded-3xl overflow-hidden cursor-default lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-xl font-display text-white flex items-center gap-2">
               <Target className="w-5 h-5 text-accent-cyan" />
@@ -192,19 +238,25 @@ export function ModelResultsPage({ result, onBack }: ModelResultsPageProps) {
                 <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Accuracy</th>
                 <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Demographic Parity Diff</th>
                 <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Disparate Impact</th>
-                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Equal Opportunity Diff</th>
+                <th className="px-6 py-4 text-xs font-display uppercase tracking-wide text-text-secondary">Summary</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {modelResults.map((r: any) => (
-                <tr key={r.model} className="hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-white">{r.model}</td>
-                  <td className="px-6 py-4 text-sm text-white/70">{(r.accuracy * 100).toFixed(1)}%</td>
-                  <td className="px-6 py-4 text-sm text-white/70">{r.fairness.demographicParityDiff.toFixed(3)}</td>
-                  <td className="px-6 py-4 text-sm text-white/70">{r.fairness.disparateImpactRatio.toFixed(3)}</td>
-                  <td className="px-6 py-4 text-sm text-white/70">{r.fairness.equalOpportunityDiff.toFixed(3)}</td>
-                </tr>
-              ))}
+              {modelResults.map((r: any) => {
+                const fs = Math.max(0, 100 - r.fairness.demographicParityDiff * 100);
+                const tag = getFairnessLabel(fs);
+                return (
+                  <tr key={r.model} className="hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-white">{r.model}</td>
+                    <td className="px-6 py-4 text-sm text-white/70">{(r.accuracy * 100).toFixed(1)}%</td>
+                    <td className="px-6 py-4 text-sm text-white/70">{fs.toFixed(1)}</td>
+                    <td className="px-6 py-4 text-sm text-white/70">{r.fairness.disparateImpactRatio.toFixed(3)}</td>
+                    <td className="px-6 py-4 text-sm font-semibold">
+                       <Badge className={tag.bg + " " + tag.color}>{tag.label}</Badge>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </CardContent>
