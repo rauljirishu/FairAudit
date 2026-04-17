@@ -123,9 +123,9 @@ export function Dashboard({ user, onNewAudit, onViewAudit }: DashboardProps) {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Total Audits" value={stats.totalAudits} icon={Shield} color="blue" />
+        <StatCard label="Recruitment Audits" value={stats.totalAudits} icon={Shield} color="blue" />
         <StatCard label="Bias Detected" value={stats.criticalBiases} icon={AlertTriangle} color="red" />
-        <StatCard label="Datasets Clean" value={stats.datasetsClean} icon={CheckCircle2} color="green" />
+        <StatCard label="Fairpools Verified" value={stats.datasetsClean} icon={CheckCircle2} color="green" />
         <StatCard label="Reports Generated" value={stats.reportsGenerated} icon={FileText} color="purple" />
       </div>
 

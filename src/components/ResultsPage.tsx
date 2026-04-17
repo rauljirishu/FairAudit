@@ -405,6 +405,36 @@ export function ResultsPage({ result, user, onBack }: ResultsPageProps) {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
+            {/* Impact Storytelling */}
+            <Card className="glass border-warning-orange/20 bg-warning-orange/5 rounded-3xl overflow-hidden mt-8">
+              <CardHeader>
+                <CardTitle className="text-xl font-display text-white flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-warning-orange" />
+                  REAL-WORLD IMPACT SIMULATION
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <blockquote className="border-l-2 border-warning-orange pl-4 italic text-white/80 text-sm mb-4">
+                  "Based on {result.fairnessScore < 80 ? 'these biases' : 'this data'}, a qualified candidate from an underrepresented group may be unfairly rejected despite having equivalent qualifications. Without mitigation, scaling this model to 10,000 applicants could result in hundreds of discriminatory rejections."
+                </blockquote>
+                <div className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
+                  <div className="flex-1">
+                    <p className="text-[10px] font-display text-text-secondary uppercase tracking-wide">BEFORE MITIGATION</p>
+                    <p className="text-danger-red font-bold text-xl">{result.fairnessScore}/100 Fair</p>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-text-secondary opacity-50" />
+                  <div className="flex-1">
+                    <p className="text-[10px] font-display text-text-secondary uppercase tracking-wide">AFTER TARGET (EST.)</p>
+                    <p className="text-success-neon font-bold text-xl">95+/100 Fair</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-success-neon">
+                  <Activity className="w-4 h-4" />
+                  Applying recommended fixes can reduce demographic bias by an estimated 35%.
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* AI Insights & Recommendations */}

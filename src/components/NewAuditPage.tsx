@@ -242,10 +242,10 @@ export function NewAuditPage({ user, onComplete, onCancel }: NewAuditPageProps) 
               </div>
               
               <h3 className="text-3xl font-display font-semibold text-white mb-4">
-                {isParsing ? "PARSING DATA..." : "DROP DATASET HERE"}
+                {isParsing ? "PARSING DATA..." : "UPLOAD HIRING DATA"}
               </h3>
               <p className="text-text-secondary max-w-md text-lg">
-                Drag and drop your hiring, credit, or demographic CSV here, or click to browse your neural data.
+                Drag and drop your applicant evaluation or hiring records CSV here, or browse files.
               </p>
               
               <div className="mt-12 flex gap-6">
@@ -340,7 +340,7 @@ export function NewAuditPage({ user, onComplete, onCancel }: NewAuditPageProps) 
               <CardContent className="space-y-6">
                 <ConfigSelect 
                   label="Outcome Column" 
-                  description="The target variable (e.g., hired, approved)."
+                  description="The target variable (e.g., hired, interview_granted)."
                   value={outcomeCol}
                   onChange={setOutcomeCol}
                   options={columns}

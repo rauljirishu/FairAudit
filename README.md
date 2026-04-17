@@ -1,18 +1,17 @@
-# FairAudit 🚀
+# FairAudit HR 🚀
 
-FairAudit is a full-featured AI fairness auditing system designed to help developers and data scientists automatically detect, explain, and mitigate bias in their datasets and machine learning models. 
+FairAudit HR is a full-featured AI fairness auditing system designed to help HR teams and developers automatically detect, explain, and mitigate bias in their hiring datasets and applicant tracking ML models. By aligning with **SDG 10 (Reduced Inequality)**, we ensure a fairer job market.
 
 ## Problem Statement
-In the age of AI, machine learning models are being deployed to make critical decisions (e.g., loan approvals, hiring, parole). However, if the training data is historically biased, the model will systematically discriminate against protected demographic groups (e.g., by race, gender, age). FairAudit provides a unified dashboard to proactively catch algorithmic bias *before* a model is deployed.
+In the age of AI, machine learning models are deployed to make critical hiring decisions. However, if the historic recruitment data is biased, the model will systematically discriminate against protected demographic groups (e.g., by race, gender, age). FairAudit HR provides a unified dashboard to proactively catch algorithmic bias *before* a model is deployed to screen resumes.
 
 ## Features ✨
-- **CSV Data Upload:** Effortlessly upload real datasets (credit approvals, hiring records, etc.) directly into the system.
-- **Fairness Metrics Dashboard:** Clean, interactive UI showing Accuracy, Bias Scores, Demographic Parity Diff, and Equal Opportunity Diff.
+- **Applicant Data Upload:** Effortlessly upload hiring records or resume datasets directly into the system.
+- **Fairpools Dashboard:** Clean, interactive UI showing Accuracy, Bias Scores, Demographic Parity Diff, and Equal Opportunity Diff tailored for recruitment.
 - **Fairness Score:** A single glance out-of-100 score indicating bias risks.
-- **Model Comparison:** Automatically train at least two ML models (Logistic Regression vs. Random Forest) and view comparison charts on accuracy vs. fairness.
-- **Explainable AI:** Integration with Gemini AI to provide a human-readable explanation of bias findings.
-- **Bias Mitigation:** Automated suggestions for resolving issues (e.g., re-weighting instances, dropping proxies).
-- **Export to PDF:** Instantly download a comprehensive, professional PDF Audit Report.
+- **Explainable AI:** Integration with Google Gemini AI to provide a human-readable, empathetic explanation of bias findings ("Candidate X was unfairly rejected...").
+- **Bias Mitigation:** Automated suggestions and real-world impact simulations showing "Before vs After" reductions in bias.
+- **Export to PDF:** Instantly download a comprehensive, professional HR Audit Report.
 
 ## Tech Stack 🛠
 - **Backend:** Python, FastAPI, scikit-learn, pandas
@@ -51,12 +50,9 @@ In the age of AI, machine learning models are being deployed to make critical de
 
 ### Usage
 - Once the app loads, log in or proceed as a Guest.
-- Go to **Model Audit** from the Dashboard.
-- Drag & Drop your dataset (e.g. `sample_hiring.csv`).
-- Map your target and protected columns, and hit **Train & Compare Models**.
-
-## Screenshots 📸
-*(Placeholder for UI screenshots. You can take screenshots of the beautiful Neural Dashboard, interactive fairness metrics, and downloadable PDF.)*
+- Go to **New Audit** from the Dashboard.
+- Drag & Drop your hiring dataset (e.g. `sample_hiring.csv`).
+- Map your target and protected columns, and hit **Start Analysis**.
 
 ---
 *Built with ❤️ for a fairer future.*

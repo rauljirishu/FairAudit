@@ -328,7 +328,7 @@ export default function App() {
       case 'monitor': return 'Bias Monitoring';
       case 'team': return 'Team Collaboration';
       case 'leaderboard': return 'Public Leaderboard';
-      default: return 'FairAudit Pro';
+      default: return 'FairAudit HR';
     }
   };
 

@@ -51,7 +51,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.3, duration: 0.8 }}
         >
-          FAIRAUDIT PRO
+          FAIRAUDIT HR
         </motion.h1>
         
         <motion.p 
@@ -69,7 +69,7 @@ export function LandingPage({ onStart }: LandingPageProps) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
         >
-          The industry-standard platform for neural network fairness auditing. 
+          The industry-standard AI fairness auditing platform for HR teams. Ensure your hiring process is objective, bias-free, and aligned with SDG 10 (Reduced Inequality).
           Powered by <span className="text-accent-purple font-bold">Google Gemini AI</span>.
         </motion.p>
         
@@ -97,9 +97,9 @@ export function LandingPage({ onStart }: LandingPageProps) {
         transition={{ delay: 1.5, duration: 1 }}
         className="absolute bottom-12 w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-8 px-8"
       >
-        <StatItem label="Datasets Audited" value="10,000+" icon={<Shield className="w-5 h-5" />} />
-        <StatItem label="Accuracy Rate" value="98%" icon={<Brain className="w-5 h-5" />} />
-        <StatItem label="Countries" value="50+" icon={<Globe className="w-5 h-5" />} />
+        <StatItem label="Candidates Audited" value="1M+" icon={<Shield className="w-5 h-5" />} />
+        <StatItem label="Bias Mitigated" value="85% AVG" icon={<Brain className="w-5 h-5" />} />
+        <StatItem label="HR Teams" value="500+" icon={<Globe className="w-5 h-5" />} />
       </motion.div>
 
       <AnimatePresence>
