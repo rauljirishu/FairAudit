@@ -15,9 +15,10 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "fairaudit-ozrqdp0t1-rishita-rauljis-projects.vercel.app",   # your Vercel URL — update this
-        "http://localhost:5173",
-    ],
+    "https://fairaudit-75uiqte2p-rishita-rauljis-projects.vercel.app",
+    "https://fairaudit.vercel.app",  # keep this for future redeployments
+    "http://localhost:5173",
+],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
