@@ -1,8 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { BiasMetrics } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 export interface GeminiFairnessResponse {
   summary: string;
   grade: "A" | "B" | "C" | "D" | "F";
